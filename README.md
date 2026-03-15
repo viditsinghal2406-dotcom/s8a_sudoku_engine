@@ -27,7 +27,7 @@ A fully playable Sudoku game with a built-in solver and puzzle generator. Genera
 
 **Generator** - fills a complete board using randomised backtracking, then removes cells one by one. After each removal, checks that exactly one solution remains. If not, the cell is restored.
 
-**Difficulty** — controlled by number of cells removed:
+**Difficulty** - controlled by number of cells removed:
 | Level  | Cells Removed | Clues Left |
 |--------|--------------|------------|
 | Easy   | 32–36        | 45–49      |
