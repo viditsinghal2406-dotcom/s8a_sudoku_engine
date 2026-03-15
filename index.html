@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudoku Engine — 8a</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #0d0d0d;
+  --surface:    #161616;
+  --border-thin: #2a2a2a;
+  --border-box:  #555;
+  --border-outer:#888;
+  --text:       #f0f0f0;
+  --muted:      rgba(255,255,255,0.28);
+  --accent:     #00ffd1;
+  --blue:       #60a5fa;
+  --blue-dim:   rgba(96,165,250,0.12);
+  --blue-mid:   rgba(96,165,250,0.22);
+  --blue-sel:   rgba(96,165,250,0.35);
+  --red:        #f87171;
+  --red-dim:    rgba(248,113,113,0.12);
+  --green:      #34d399;
+  --green-dim:  rgba(52,211,153,0.12);
+  --same-num:   rgba(96,165,250,0.18);
+  --highlight:  rgba(255,255,255,0.05);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 16px 60px;
+}
+
+.container { width: 100%; max-width: 460px; }
+
+/* ── HEADER ── */
+.tag {
+  display: inline-block; padding: 2px 10px; border-radius: 4px;
+  font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase;
+  border: 1px solid rgba(0,255,209,0.25); background: rgba(0,255,209,0.05);
+  color: var(--accent); margin-bottom: 8px;
+}
+h1 {
+  font-family: 'Syne', sans-serif; font-size: 3rem;
+  font-weight: 800; letter-spacing: -3px; color: #fff;
+  line-height: 1; margin-bottom: 4px;
+}
+.subtitle { font-size: 0.7rem; color: var(--muted); margin-bottom: 20px; letter-spacing: 1px; }
+
+/* ── DIFFICULTY BUTTONS ── */
+.diff-btns { display: flex; gap: 6px; margin-bottom: 16px; }
+.diff-btn {
+  flex: 1; padding: 7px 4px; border-radius: 6px;
+  border: 1px solid var(--border-thin);
+  background: var(--surface); color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 1px; cursor: pointer; transition: all 0.15s;
+}
+.diff-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+.diff-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,209,0.05); }
+
+/* ── STATS ── */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border-thin);
+  border-radius: 8px; padding: 10px 4px; text-align: center;
+}
+.stat-label { font-size: 0.5rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3px; }
+.stat-value { font-size: 1.15rem; font-weight: 600; color: var(--text); }
+.warn { color: var(--red) !important; }
+
+/* ── BOARD ── */
+.board {
+  border-collapse: collapse;
+  margin: 0 auto 18px;
+  border: 3px solid var(--border-outer);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6), 0 0 80px rgba(0,0,0,0.4);
+  width: 100%;
+  table-layout: fixed;
+}
+
+.board td {
+  width: 11.11%; height: 0;
+  padding-bottom: 11.11%; /* square cells */
+  position: relative;
+  border: 1px solid var(--border-thin);
+  cursor: pointer;
+  background: var(--surface);
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.board td span {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: clamp(0.85rem, 2.5vw, 1.15rem);
+  font-weight: 600;
+}
+
+/* Thick 3x3 box borders */
+.board td.rb { border-right:  2px solid var(--border-box); }
+.board td.bb { border-bottom: 2px solid var(--border-box); }
+
+/* ── CELL STATES ── */
+
+/* Clue — original number */
+.board td.clue           { background: #1a1a1a; cursor: default; }
+.board td.clue span      { color: #e8e8e8; }
+
+/* User entered correct */
+.board td.user           { background: var(--blue-dim); }
+.board td.user span      { color: var(--blue); }
+
+/* Wrong */
+.board td.wrong          { background: var(--red-dim); }
+.board td.wrong span     { color: var(--red); animation: shake 0.3s; }
+
+/* Hint revealed */
+.board td.hint-c         { background: var(--green-dim); }
+.board td.hint-c span    { color: var(--green); }
+
+/* ── HIGHLIGHTS (applied via JS) ── */
+
+/* Row/col of selected cell */
+.board td.hl-cross                  { background: rgba(255,255,255,0.07) !important; }
+.board td.clue.hl-cross             { background: #242424 !important; }
+.board td.user.hl-cross             { background: rgba(96,165,250,0.18) !important; }
+.board td.wrong.hl-cross            { background: rgba(248,113,113,0.18) !important; }
+
+/* Same 3x3 box as selected */
+.board td.hl-box                    { background: rgba(255,255,255,0.11) !important; }
+.board td.clue.hl-box               { background: #2a2a2a !important; }
+.board td.user.hl-box               { background: rgba(96,165,250,0.22) !important; }
+.board td.wrong.hl-box              { background: rgba(248,113,113,0.18) !important; }
+
+/* Selected cell itself */
+.board td.selected       { background: var(--blue-sel) !important; }
+.board td.selected span  { color: #fff; }
+
+/* Same number highlight */
+.board td.hl-same        { background: var(--same-num) !important; }
+.board td.clue.hl-same   { background: rgba(96,165,250,0.15) !important; }
+
+/* Hover */
+.board td:not(.clue):hover { background: rgba(255,255,255,0.08); }
+.board td.selected:hover   { background: var(--blue-sel) !important; }
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
+}
+
+/* ── NUMPAD ── */
+.numpad-wrap {
+  background: var(--surface); border: 1px solid var(--border-thin);
+  border-radius: 10px; padding: 14px; margin-bottom: 14px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.numpad-title {
+  font-size: 0.6rem; color: var(--muted); letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.numpad {
+  display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-bottom: 10px;
+}
+.num-btn {
+  aspect-ratio: 1; border-radius: 6px;
+  border: 1px solid rgba(96,165,250,0.2);
+  background: rgba(96,165,250,0.06); color: var(--blue);
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 600;
+  cursor: pointer; transition: all 0.1s;
+}
+.num-btn:hover  { background: rgba(96,165,250,0.15); border-color: var(--blue); transform: scale(1.05); }
+.num-btn:active { transform: scale(0.95); }
+/* Number fully placed on board — greyed out and disabled */
+.num-btn.completed {
+  background: transparent; border-color: var(--border-thin);
+  color: rgba(255,255,255,0.1); cursor: not-allowed;
+  transform: none !important;
+}
+/* No cell selected — numpad dimmed */
+.num-btn.no-select {
+  opacity: 0.45; cursor: default;
+  transform: none !important;
+}
+
+.numpad-actions { display: flex; gap: 8px; }
+.action-btn {
+  flex: 1; padding: 7px; border-radius: 6px;
+  border: 1px solid var(--border-thin); background: #1e1e1e;
+  color: var(--muted); font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; cursor: pointer; transition: all 0.1s; letter-spacing: 1px;
+}
+.action-btn:hover    { border-color: rgba(255,255,255,0.25); color: var(--text); }
+.action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.action-btn.hint-avail { border-color: rgba(0,255,209,0.3); color: var(--accent); background: rgba(0,255,209,0.04); }
+
+/* ── BANNERS ── */
+.banner { border-radius: 10px; padding: 24px; text-align: center; display: none; margin-bottom: 14px; }
+.banner.visible { display: block; animation: fadeUp 0.3s ease; }
+.banner.win  { background: linear-gradient(135deg,#0a2218,#0a1220); border: 1px solid var(--green); }
+.banner.lose { background: linear-gradient(135deg,#220a0a,#1a0808); border: 1px solid var(--red); }
+.banner-icon  { font-size: 2rem; margin-bottom: 6px; }
+.banner-title { font-family: 'Syne', sans-serif; font-size: 1.5rem; font-weight: 800; margin-bottom: 6px; }
+.banner-sub   { font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+.banner.win  .banner-title { color: var(--green); }
+.banner.lose .banner-title { color: var(--red); }
+
+/* ── FOOTER ── */
+.footer { margin-top: 24px; font-size: 0.55rem; color: rgba(255,255,255,0.1); letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="tag">Series 8 — 8a</div>
+  <h1>SUDOKU</h1>
+  <p class="subtitle">3 mistakes · 1 hint · click a cell to play</p>
+
+  <div class="diff-btns">
+    <button class="diff-btn" onclick="newGame('easy')">🟢 Easy</button>
+    <button class="diff-btn active" onclick="newGame('medium')">🟡 Medium</button>
+    <button class="diff-btn" onclick="newGame('hard')">🔴 Hard</button>
+    <button class="diff-btn" onclick="newGame(currentDiff)">🔀 New</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Time</div><div class="stat-value" id="s-time">00:00</div></div>
+    <div class="stat"><div class="stat-label">Left</div><div class="stat-value" id="s-left">—</div></div>
+    <div class="stat"><div class="stat-label">Mistakes</div><div class="stat-value" id="s-mis">0/3</div></div>
+    <div class="stat"><div class="stat-label">Hints</div><div class="stat-value" id="s-hint">1 left</div></div>
+  </div>
+
+  <table class="board" id="board"></table>
+
+  <div class="numpad-wrap" id="numpad-wrap">
+    <div class="numpad-title" id="np-title">Select an empty cell to place a number</div>
+    <div class="numpad" id="numpad"></div>
+    <div class="numpad-actions">
+      <button class="action-btn" onclick="eraseCell()">⌫ Erase</button>
+      <button class="action-btn" onclick="undoMove()">↩ Undo</button>
+      <button class="action-btn hint-avail" id="hint-btn" onclick="useHint()">💡 Hint (1 left)</button>
+    </div>
+  </div>
+
+  <div class="banner win" id="win-banner">
+    <div class="banner-icon">✓</div>
+    <div class="banner-title">SOLVED</div>
+    <div class="banner-sub" id="win-sub"></div>
+    <button class="diff-btn" style="margin-top:14px;max-width:160px;border-color:rgba(52,211,153,0.4);color:#34d399" onclick="newGame(currentDiff)">🔀 Play Again</button>
+  </div>
+  <div class="banner lose" id="lose-banner">
+    <div class="banner-icon">✗</div>
+    <div class="banner-title">GAME OVER</div>
+    <div class="banner-sub">3 mistakes reached</div>
+    <button class="diff-btn" style="margin-top:14px;max-width:160px" onclick="newGame(currentDiff)">🔀 New Game</button>
+  </div>
+
+  <p class="footer">Series 8 · 8a · Sudoku Engine · Vidit Singhal</p>
+</div>
+
+<script>
+// ─── ENGINE ────────────────────────────────────────────────────────────────
+
+function isValid(b, r, c, n) {
+  for (let i=0;i<9;i++) if (b[r][i]===n || b[i][c]===n) return false;
+  const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
+  for (let i=br;i<br+3;i++) for (let j=bc;j<bc+3;j++) if (b[i][j]===n) return false;
+  return true;
+}
+function findEmpty(b) {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) if (b[r][c]===0) return [r,c];
+  return null;
+}
+function solve(b) {
+  const p=findEmpty(b); if (!p) return true;
+  const [r,c]=p;
+  for (let n=1;n<=9;n++) { if (isValid(b,r,c,n)) { b[r][c]=n; if (solve(b)) return true; b[r][c]=0; } }
+  return false;
+}
+function countSol(b, lim=2) {
+  const p=findEmpty(b); if (!p) return 1;
+  const [r,c]=p; let t=0;
+  for (let n=1;n<=9;n++) { if (isValid(b,r,c,n)) { b[r][c]=n; t+=countSol(b,lim); b[r][c]=0; if (t>=lim) return t; } }
+  return t;
+}
+function shuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function dc(b) { return b.map(r=>[...r]); }
+
+const DIFF = { easy:[32,36], medium:[46,49], hard:[52,55] };
+
+function genPuzzle(diff) {
+  const sol = Array.from({length:9},()=>Array(9).fill(0));
+  (function fill(b) {
+    const p=findEmpty(b); if (!p) return true;
+    const [r,c]=p, nums=shuffle([1,2,3,4,5,6,7,8,9]);
+    for (const n of nums) { if (isValid(b,r,c,n)) { b[r][c]=n; if (fill(b)) return true; b[r][c]=0; } }
+    return false;
+  })(sol);
+  const puz=dc(sol);
+  const [mn,mx]=DIFF[diff];
+  const target=mn+Math.floor(Math.random()*(mx-mn+1));
+  const cells=shuffle([...Array(81).keys()].map(i=>[Math.floor(i/9),i%9]));
+  let rem=0;
+  for (const [r,c] of cells) {
+    if (rem>=target) break;
+    const bk=puz[r][c]; puz[r][c]=0;
+    if (countSol(dc(puz))!==1) puz[r][c]=bk; else rem++;
+  }
+  return {puz, sol};
+}
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+
+let board, solution, original, hintCells, selected;
+let mistakes, hintsUsed, history, gameOver, startTime, timerInterval, currentDiff;
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+
+function newGame(diff) {
+  currentDiff = diff;
+  gameOver = false; selected = null; mistakes = 0; hintsUsed = 0;
+  history = []; hintCells = new Set();
+
+  document.querySelectorAll('.diff-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['easy','medium','hard'][i]===diff);
+  });
+  document.getElementById('win-banner').classList.remove('visible');
+  document.getElementById('lose-banner').classList.remove('visible');
+  document.getElementById('np-title').textContent = 'Select an empty cell to place a number';
+  document.getElementById('board').style.display = '';
+  document.getElementById('numpad-wrap').style.display = '';
+
+  const hb = document.getElementById('hint-btn');
+  hb.disabled = false; hb.textContent = '💡 Hint (1 left)';
+  hb.className = 'action-btn hint-avail';
+
+  const {puz, sol} = genPuzzle(diff);
+  board = dc(puz); solution = sol; original = dc(puz);
+
+  clearInterval(timerInterval);
+  startTime = Date.now();
+  timerInterval = setInterval(updateStats, 1000);
+
+  renderBoard(); updateStats(); buildNumpad();
+}
+
+// ─── RENDER ────────────────────────────────────────────────────────────────
+
+function renderBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+
+  // Precompute highlights
+  const hlCross = new Set(), hlBox = new Set(), hlSame = new Set();
+  if (selected) {
+    const [sr, sc] = selected;
+    const selVal = board[sr][sc];
+
+    for (let i=0;i<9;i++) {
+      hlCross.add(`${sr},${i}`); // same row
+      hlCross.add(`${i},${sc}`); // same col
+    }
+    const br=Math.floor(sr/3)*3, bc=Math.floor(sc/3)*3;
+    for (let r=br;r<br+3;r++) for (let c=bc;c<bc+3;c++) hlBox.add(`${r},${c}`);
+
+    // Highlight same number
+    if (selVal !== 0) {
+      for (let r=0;r<9;r++) for (let c=0;c<9;c++)
+        if (board[r][c]===selVal) hlSame.add(`${r},${c}`);
+    }
+  }
+
+  for (let r=0;r<9;r++) {
+    const tr = document.createElement('tr');
+    for (let c=0;c<9;c++) {
+      const td  = document.createElement('td');
+      const key = `${r},${c}`;
+      const val = board[r][c];
+      const isClue = original[r][c] !== 0;
+      const isHint = hintCells.has(key);
+      const isSel  = selected && selected[0]===r && selected[1]===c;
+      const isWrong = val!==0 && !isClue && val!==solution[r][c];
+
+      // Thick box borders
+      if (c===2||c===5) td.classList.add('rb');
+      if (r===2||r===5) td.classList.add('bb');
+
+      // Cell type classes
+      if (isClue)        td.classList.add('clue');
+      else if (isWrong)  td.classList.add('wrong');
+      else if (isHint)   td.classList.add('hint-c');
+      else if (val!==0)  td.classList.add('user');
+
+      // Highlight classes — selected wins, then same-number, then box, then cross
+      // All apply regardless of whether cell is empty or filled
+      if (isSel) {
+        td.classList.add('selected');
+      } else if (hlSame.has(key) && val !== 0) {
+        td.classList.add('hl-same');
+      } else if (hlBox.has(key)) {
+        td.classList.add('hl-box');
+      } else if (hlCross.has(key)) {
+        td.classList.add('hl-cross');
+      }
+
+      // Content
+      const span = document.createElement('span');
+      span.textContent = val !== 0 ? val : '';
+      td.appendChild(span);
+
+      // Click
+      if (!gameOver) {
+        td.addEventListener('click', () => handleCellClick(r, c));
+      }
+
+      tr.appendChild(td);
+    }
+    el.appendChild(tr);
+  }
+}
+
+// ─── CELL CLICK ────────────────────────────────────────────────────────────
+
+function handleCellClick(r, c) {
+  const isClue    = original[r][c] !== 0;
+  const val       = board[r][c];
+  const isCorrect = val !== 0 && val === solution[r][c] && !isClue;
+
+  // Clue cells and correctly placed cells — just highlight, no numpad
+  if (isClue || isCorrect) {
+    selected = [r, c];
+    renderBoard();
+    buildNumpad(); // rebuild to show/hide completed numbers
+    document.getElementById('np-title').textContent =
+      isClue ? `Row ${r+1}, Col ${c+1} — clue cell, can't edit`
+             : `Row ${r+1}, Col ${c+1} — already correct ✓`;
+    return;
+  }
+
+  // Same cell clicked again → deselect
+  if (selected && selected[0]===r && selected[1]===c) {
+    selected = null;
+    document.getElementById('np-title').textContent = 'Select an empty cell to place a number';
+    renderBoard();
+    buildNumpad();
+    return;
+  }
+
+  // Empty or wrong cell — select and open numpad
+  selected = [r, c];
+  renderBoard();
+  document.getElementById('np-title').textContent =
+    `Row ${r+1}, Col ${c+1}${val ? ' — wrong, replace it' : ' — empty'}`;
+  buildNumpad();
+}
+
+// ─── NUMPAD ────────────────────────────────────────────────────────────────
+
+function countOnBoard(num) {
+  let count = 0;
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++)
+    if (board[r][c] === num) count++;
+  return count;
+}
+
+function buildNumpad() {
+  const np = document.getElementById('numpad');
+  np.innerHTML = '';
+  const hasSelected = selected !== null;
+
+  for (let n=1;n<=9;n++) {
+    const btn = document.createElement('button');
+    btn.className = 'num-btn';
+    btn.textContent = n;
+
+    const done = countOnBoard(n) >= 9;
+
+    if (done) {
+      // All 9 placed — grey out, unclickable
+      btn.classList.add('completed');
+      btn.disabled = true;
+    } else if (!hasSelected) {
+      // No cell selected — dim but visible
+      btn.classList.add('no-select');
+      btn.disabled = true;
+    } else {
+      btn.onclick = () => placeNum(n);
+    }
+
+    np.appendChild(btn);
+  }
+}
+
+// ─── PLACE NUMBER ──────────────────────────────────────────────────────────
+
+function placeNum(num) {
+  if (!selected || gameOver) return;
+  const [r, c] = selected;
+  if (original[r][c] !== 0) return;
+
+  history.push({ board: dc(board), hints: new Set(hintCells) }); // mistakes NOT saved — permanent
+
+  board[r][c] = num;
+
+  if (num === solution[r][c]) {
+    // Correct — deselect
+    selected = null;
+    document.getElementById('np-title').textContent = 'Select an empty cell to place a number';
+    renderBoard(); updateStats(); buildNumpad();
+    if (checkWin()) { endGame(true); return; }
+  } else {
+    // Wrong — permanent mistake
+    mistakes++;
+    renderBoard(); updateStats(); buildNumpad();
+    if (mistakes >= 3) { endGame(false); return; }
+  }
+}
+
+function eraseCell() {
+  if (!selected || gameOver) return;
+  const [r, c] = selected;
+  if (original[r][c] !== 0) return;
+  history.push({ board: dc(board), hints: new Set(hintCells) });
+  board[r][c] = 0;
+  hintCells.delete(`${r},${c}`);
+  renderBoard(); updateStats(); buildNumpad();
+}
+
+function undoMove() {
+  if (!history.length) return;
+  const prev = history.pop();
+  board = prev.board; hintCells = prev.hints;
+  // mistakes intentionally NOT restored — they are permanent
+  renderBoard(); updateStats(); buildNumpad();
+}
+
+function useHint() {
+  if (hintsUsed >= 1 || gameOver) return;
+  const empties = [];
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) if (board[r][c]===0) empties.push([r,c]);
+  if (!empties.length) return;
+
+  history.push({ board: dc(board), hints: new Set(hintCells) });
+
+  const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+  board[r][c] = solution[r][c];
+  hintCells.add(`${r},${c}`);
+  hintsUsed++;
+
+  const hb = document.getElementById('hint-btn');
+  hb.disabled = true; hb.textContent = '💡 Hint (used)';
+  hb.className = 'action-btn';
+
+  selected = null;
+  document.getElementById('np-title').textContent = 'Select an empty cell to place a number';
+  renderBoard(); updateStats(); buildNumpad();
+  if (checkWin()) endGame(true);
+}
+
+// ─── WIN/LOSE ──────────────────────────────────────────────────────────────
+
+function checkWin() {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) if (board[r][c]!==solution[r][c]) return false;
+  return true;
+}
+
+function endGame(won) {
+  gameOver = true;
+  clearInterval(timerInterval);
+  selected = null;
+  document.getElementById('np-title').textContent = 'Game over';
+  renderBoard();
+
+  if (!won) {
+    // Hide board and numpad, show only lose banner
+    document.getElementById('board').style.display = 'none';
+    document.getElementById('numpad-wrap').style.display = 'none';
+  }
+
+  if (won) {
+    const e = Math.floor((Date.now()-startTime)/1000);
+    const m = String(Math.floor(e/60)).padStart(2,'0');
+    const s = String(e%60).padStart(2,'0');
+    document.getElementById('win-sub').innerHTML =
+      `${m}:${s} &nbsp;·&nbsp; ${mistakes} mistake${mistakes!==1?'s':''} &nbsp;·&nbsp; ${hintsUsed} hint used`;
+    document.getElementById('win-banner').classList.add('visible');
+  } else {
+    document.getElementById('lose-banner').classList.add('visible');
+  }
+}
+
+// ─── STATS ─────────────────────────────────────────────────────────────────
+
+function updateStats() {
+  const e = Math.floor((Date.now()-startTime)/1000);
+  document.getElementById('s-time').textContent =
+    `${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;
+
+  let left=0;
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) if (board[r][c]===0) left++;
+  document.getElementById('s-left').textContent = left;
+
+  const mEl = document.getElementById('s-mis');
+  mEl.textContent = `${mistakes}/3`;
+  mEl.className = 'stat-value' + (mistakes>=2?' warn':'');
+
+  const hEl = document.getElementById('s-hint');
+  hEl.textContent = hintsUsed>=1 ? 'used' : '1 left';
+  hEl.className = 'stat-value' + (hintsUsed>=1?' warn':'');
+}
+
+// ─── START ─────────────────────────────────────────────────────────────────
+newGame('medium');
+</script>
+</body>
+</html>
