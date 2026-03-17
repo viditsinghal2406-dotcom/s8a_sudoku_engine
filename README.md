@@ -6,7 +6,7 @@ A fully playable Sudoku game with a built-in solver and puzzle generator. Genera
 <br>
 
 <a href="https://viditsinghal2406-dotcom.github.io/s8a_sudoku_engine">
-  <img src="ss_s8a.png" alt="Sudoku Engine Preview" width="600"/>
+  <img src="8a_ss.png" alt="Sudoku Engine Preview" width="600"/>
 </a>
 
 <br>
