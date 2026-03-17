@@ -4,6 +4,7 @@
 A fully playable Sudoku game with a built-in solver and puzzle generator. Generates unique puzzles at 3 difficulty levels using a backtracking algorithm, no external libraries used.
 
 **[▶ Play Live](https://viditsinghal2406-dotcom.github.io/s8a_sudoku_engine)**
+![Preview](ss_s8a.png)
 
 ---
 
