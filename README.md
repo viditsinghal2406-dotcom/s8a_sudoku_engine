@@ -3,37 +3,46 @@
 
 A fully playable Sudoku game with a built-in solver and puzzle generator. Generates unique puzzles at 3 difficulty levels using a backtracking algorithm, no external libraries used.
 
+<br>
+
+<a href="https://viditsinghal2406-dotcom.github.io/s8a_sudoku_engine">
+  <img src="ss_s8a.png" alt="Sudoku Engine Preview" width="600"/>
+</a>
+
+<br>
+
 **[▶ Play Live](https://viditsinghal2406-dotcom.github.io/s8a_sudoku_engine)**
-![Preview](ss_s8a.png)
 
 ---
 
 ## Features
-- 3 difficulty levels - Easy, Medium, Hard
+
+- 3 difficulty levels, Easy, Medium, Hard
 - Guaranteed unique solution for every generated puzzle
 - Click any cell to place a number via numpad
-- Row, column and 3×3 box highlighting on cell select
+- Row, column and 3x3 box highlighting on cell select
 - Same-number highlighting across the board
-- 3 mistake limit - permanent, can't be undone
+- 3 mistake limit, permanent, cannot be undone
 - 1 hint per game
 - Undo support
 - Numbers grey out when all 9 are placed
-- Win / Game Over screen with stats
+- Win and Game Over screen with stats
 
 ---
 
 ## How it Works
 
-**Solver** - recursive backtracking. Tries numbers 1–9 in each empty cell, backtracks when no valid number exists.
+**Solver** uses recursive backtracking. Tries numbers 1 to 9 in each empty cell, backtracks when no valid number exists.
 
-**Generator** - fills a complete board using randomised backtracking, then removes cells one by one. After each removal, checks that exactly one solution remains. If not, the cell is restored.
+**Generator** fills a complete board using randomised backtracking, then removes cells one by one. After each removal, checks that exactly one solution remains. If not, the cell is restored.
 
-**Difficulty** - controlled by number of cells removed:
+**Difficulty** is controlled by number of cells removed:
+
 | Level  | Cells Removed | Clues Left |
 |--------|--------------|------------|
-| Easy   | 32–36        | 45–49      |
-| Medium | 46–49        | 32–35      |
-| Hard   | 52–55        | 26–29      |
+| Easy   | 32 to 36     | 45 to 49   |
+| Medium | 46 to 49     | 32 to 35   |
+| Hard   | 52 to 55     | 26 to 29   |
 
 ---
 
@@ -49,21 +58,23 @@ python sudoku.py --hard
 python sudoku.py --solve    # enter your own puzzle to solve
 ```
 
-No installs needed — pure Python stdlib.
+No installs needed, pure Python stdlib.
 
 ---
 
 ## File Structure
+
 ```
-├── index.html          # web game — deployed on GitHub Pages
-├── sudoku_engine.py    # Python logic — solver, generator, validator
-├── sudoku.py           # CLI version — playable in terminal
+├── index.html          # web game, deployed on GitHub Pages
+├── sudoku_engine.py    # Python logic, solver, generator, validator
+├── sudoku.py           # CLI version, playable in terminal
 └── README.md
 ```
 
 ---
 
-## Part of Series 8 — CORE
+## Part of Series 8, CORE
+
 22 pure Python projects covering games, finance tools, and utilities.
 
 ---
